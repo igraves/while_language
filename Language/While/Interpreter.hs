@@ -1,35 +1,37 @@
 module Language.While.Interpreter where
 import Language.While.Syntax
-import Prelude hiding (LT,GT,EQ)
+import Data.Map
+import Data.Maybe
+import Prelude hiding (LT,GT,EQ, lookup)
 
+--Program state
 data Integral a => Env a = Env {
-                                  store :: Var -> AExpr a
+                                  store :: Map Var (AExpr a)
                                }  -- Have fun showing this.
 
---Don't Judge me
-create_env :: Integral a => [(String, a)] -> Env a
-create_env = create_env_h Env {store = \x -> error "Unbound variable."}
-  where
-      create_env_h e [] = e 
-      create_env_h e ((x,v):xs) = create_env_h (Env (tweak (Var x) 
-                                                           (Const v) 
-                                                           (store e))) xs
---See the prior comment
-tweak :: Var -> a -> (Var -> a) -> (Var -> a)
-tweak i v f = (\x -> if x == i then v else f x)
+--State Reads and Writes
+update_store :: (Integral a) => Env a -> Var -> AExpr a -> Env a
+update_store env var exp = let sto = store env 
+                            in env {store=insert var exp sto}
 
-update_store i v f = tweak i v f
+store_lookup :: (Integral a) => Env a -> (Var -> AExpr a)
+store_lookup env = \var -> let sto = (store env) in
+                             if member var sto
+                                then fromJust $ lookup var (store env)
+                                else error ("Unbound varible used: " ++ (unvar var))
 
+
+--run and evaluation 
 run :: Integral a => Env a -> Stmt a -> Env a
 run phi Skip = phi
-run phi (If b1 s1 s2)   = if (evalb (store phi) b1)
+run phi (Assign v exp)  = update_store phi v exp
+run phi (If b1 s1 s2)   = if (evalb (store_lookup phi) b1)
                              then run phi s1
                              else run phi s2
-run phi w@(While b1 s1) = if (evalb (store phi) b1)
+run phi w@(While b1 s1) = if (evalb (store_lookup phi) b1)
                            then run phi (Seq s1 w)
                            else phi
 run phi (Seq s1 s2) = run (run phi s1) s2
-
 
 eval ::   Integral a => (Var -> AExpr a) -> AExpr a -> a
 eval _   (Const a)   = a
