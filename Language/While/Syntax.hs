@@ -1,7 +1,8 @@
 module Language.While.Syntax where
 
 
-data Var = Var String deriving (Show, Eq)
+data Var = Var String deriving (Show, Eq, Ord)
+unvar (Var s) = s
 
 data Integral a => AExpr a =  Add (AExpr a) (AExpr a) --1st + 2nd
                                 | Sub (AExpr a) (AExpr a) --1st - 2nd
