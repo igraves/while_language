@@ -2,9 +2,9 @@ module Language.While.Interpreter where
 import Language.While.Syntax
 import Prelude hiding (LT,GT,EQ)
 
-data Integral a => Env a = Env {
-                                  store :: Var -> AExpr a
-                               }  -- Have fun showing this.
+data Env a = Env {
+                     store :: Var -> AExpr a
+                 }  -- Have fun showing this.
 
 --Don't Judge me
 create_env :: Integral a => [(String, a)] -> Env a
