@@ -20,7 +20,7 @@ lexer  = P.makeTokenParser
                , P.opStart        = P.opLetter L.emptyDef
                , P.opLetter       = oneOf ":!#$%&*+./<=>?@\\^|-~"
                , P.reservedOpNames = ["=","*","/","+","-","<","<=",">",">=","==","~"]
-               , P.reservedNames  = ["skip", "while", "if", "else", "end", "true", "false"]
+               , P.reservedNames  = ["puts", "skip", "while", "if", "else", "end", "true", "false"]
                , P.caseSensitive  = True
            }
          )
@@ -33,6 +33,7 @@ natural   = P.natural lexer
 integer   = P.integer lexer
 parens    = P.parens lexer
 semi      = P.semi lexer
+colon     = P.colon lexer
 identifier= P.identifier lexer
 reserved  = P.reserved lexer
 reservedOp= P.reservedOp lexer
@@ -118,8 +119,10 @@ assign = do
 ifthen = do 
             reserved "if"
             b <- bexpr
+            colon 
             s1 <- stmts
             reserved "else"
+            colon 
             s2 <- stmts
             reserved "end"
             return $ If b s1 s2
@@ -127,16 +130,21 @@ ifthen = do
 while = do
            reserved "while"
            b <- bexpr
+           colon
            s1 <- stmts
+           reserved "end"
            return $ While b s1
 
-stmt = skip <|> assign <|> ifthen <|> while <?> "Statement"
+puts = do
+          reserved "puts"
+          e <- aexpr
+          return $ Puts e
+
+stmt = puts <|> skip <|> assign <|> ifthen <|> while <?> "Statement"
 
 stmts = do
-          s1 <- stmt
-          try (do
-                  s2 <- stmts
-                  return $ Seq s1 s2) <|> return s1
+          ss <- stmt `endBy1` semi
+          return $ Seq ss
 
 stmt_sep = (symbol "\r\n") <|> (symbol "\n") <?> "Line break separator" 
              

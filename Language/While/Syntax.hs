@@ -28,4 +28,5 @@ data Stmt a =  Skip
                               | Assign Var (AExpr a)
                               | If (BExpr a) (Stmt a) (Stmt a) -- Then s1 else s2 respective
                               | While (BExpr a) (Stmt a)
-                              | Seq (Stmt a) (Stmt a) deriving (Show, Eq)-- Left, then right
+                              | Puts (AExpr a)
+                              | Seq [Stmt a] deriving (Show, Eq)-- Left, then right
