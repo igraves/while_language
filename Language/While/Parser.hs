@@ -114,7 +114,7 @@ assign = do
 ifthen = do 
             reserved "if"
             b <- bexpr
-            colon 
+            colon
             s1 <- stmts
             reserved "else"
             colon 
