@@ -5,7 +5,7 @@ import Data.Maybe
 import Prelude hiding (LT,GT,EQ, lookup)
 
 --Program state
-data Integral a => Env a = Env {
+data Env a = Env {
                                   store :: Map Var (AExpr a)
                                }  -- Have fun showing this.
 

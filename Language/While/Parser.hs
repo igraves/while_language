@@ -5,6 +5,7 @@ import Language.While.Syntax
 import qualified Text.Parsec.Token as P
 import qualified Text.Parsec.Language as L
 import qualified Text.Parsec.Expr as E
+import qualified Text.Parsec.Char as C
 import Data.Functor.Identity
 
 lexer :: P.TokenParser ()
@@ -118,6 +119,7 @@ assign = do
 ifthen = do 
             reserved "if"
             b <- bexpr
+            reserved "then"
             s1 <- stmts
             reserved "else"
             s2 <- stmts
@@ -134,9 +136,9 @@ stmt = skip <|> assign <|> ifthen <|> while <?> "Statement"
 
 stmts = do
           s1 <- stmt
+          C.newline
           try (do
                   s2 <- stmts
                   return $ Seq s1 s2) <|> return s1
 
-stmt_sep = (symbol "\r\n") <|> (symbol "\n") <?> "Line break separator" 
              
