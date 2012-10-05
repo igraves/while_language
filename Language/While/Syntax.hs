@@ -2,6 +2,7 @@ module Language.While.Syntax where
 
 
 data Var = Var String deriving (Show, Eq, Ord)
+unvar :: Var -> String
 unvar (Var s) = s
 
 data AExpr a =  Add (AExpr a) (AExpr a) --1st + 2nd
