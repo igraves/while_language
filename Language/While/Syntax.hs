@@ -25,6 +25,7 @@ data BExpr a =  T
                                 | NOT (BExpr a) deriving (Show, Eq)
                                 -- Missing is a parens case
 
+--The Syntax Tree for programs
 data Stmt a =  Skip
                               | Assign Var (AExpr a)
                               | If (BExpr a) (Stmt a) (Stmt a) -- Then s1 else s2 respective
