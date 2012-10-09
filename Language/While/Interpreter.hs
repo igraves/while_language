@@ -10,12 +10,13 @@ data Env a = Env {
                                   output :: [a]
                  } deriving (Show)
 
+new_env :: Env a
 new_env = Env {store=empty, output=[]}
 
 --State Reads and Writes
 update_store :: (Integral a) => Env a -> Var -> a -> Env a
-update_store env var exp = let sto = store env 
-                            in env {store=insert var exp sto}
+update_store env var e = let sto = store env 
+                            in env {store=insert var e sto}
 
 store_lookup :: (Integral a) => Env a -> (Var -> AExpr a)
 store_lookup env = \var -> let sto = (store env) in
@@ -27,11 +28,10 @@ write :: (Integral a) => Env a -> a -> Env a
 write e i = let o = output e
               in e {output=o++[i]}
 
-
 --run and evaluation 
 run :: Integral a => Env a -> Stmt a -> Env a
 run phi Skip = phi
-run phi (Assign v exp)  = update_store phi v (eval (store_lookup phi) exp)
+run phi (Assign v e)  = update_store phi v (eval (store_lookup phi) e)
 run phi (Puts i) = write phi (eval (store_lookup phi) i)
 run phi (If b1 s1 s2)   = if (evalb (store_lookup phi) b1)
                              then run phi s1

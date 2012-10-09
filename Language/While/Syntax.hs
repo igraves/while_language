@@ -2,6 +2,7 @@ module Language.While.Syntax where
 
 
 data Var = Var String deriving (Show, Eq, Ord)
+unvar :: Var -> String
 unvar (Var s) = s
 
 data AExpr a =  Add (AExpr a) (AExpr a) --1st + 2nd
@@ -24,6 +25,7 @@ data BExpr a =  T
                                 | NOT (BExpr a) deriving (Show, Eq)
                                 -- Missing is a parens case
 
+--The Syntax Tree for programs
 data Stmt a =  Skip
                               | Assign Var (AExpr a)
                               | If (BExpr a) (Stmt a) (Stmt a) -- Then s1 else s2 respective

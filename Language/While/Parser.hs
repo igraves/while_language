@@ -1,12 +1,10 @@
-module Language.While.Parser where
+module Language.While.Parser (stmts) where
 import Prelude hiding (LT,GT,EQ)
 import Text.Parsec
 import Language.While.Syntax
 import qualified Text.Parsec.Token as P
 import qualified Text.Parsec.Language as L
 import qualified Text.Parsec.Expr as E
-import qualified Text.Parsec.Char as C
-import Data.Functor.Identity
 
 lexer :: P.TokenParser ()
 lexer  = P.makeTokenParser 
@@ -27,10 +25,6 @@ lexer  = P.makeTokenParser
          )
 
 --To make stuff less crowded, use this shorthand
-whiteSpace= P.whiteSpace lexer
-lexeme    = P.lexeme lexer
-symbol    = P.symbol lexer
-natural   = P.natural lexer
 integer   = P.integer lexer
 parens    = P.parens lexer
 semi      = P.semi lexer
@@ -144,6 +138,5 @@ puts = do
 stmt = puts <|> skip <|> assign <|> ifthen <|> while <?> "Statement"
 
 stmts = do
-          stms <- stmt `endBy1` semi
-          return $ Seq stms
-
+          ss <- stmt `endBy1` semi
+          return $ Seq ss

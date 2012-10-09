@@ -1,0 +1,16 @@
+Name:                while-language
+Version:             0.1
+Description:         Super Simple While Language 
+License:             GPL
+License-file:        LICENSE
+Author:              Ian Graves 
+Maintainer:          thegravian@gmail.com 
+Build-Type:          Simple
+Cabal-Version:       >=1.2
+
+library
+  exposed-modules: Language.While.Syntax
+                   Language.While.Interpreter
+                   Language.While.Parser
+
+  build-depends:   base >= 3 && < 5, containers >= 0.4
