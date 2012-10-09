@@ -27,6 +27,7 @@ write :: (Integral a) => Env a -> a -> Env a
 write e i = let o = output e
               in e {output=o++[i]}
 
+
 --run and evaluation 
 run :: Integral a => Env a -> Stmt a -> Env a
 run phi Skip = phi
@@ -41,6 +42,7 @@ run phi w@(While b1 s1) = if (evalb (store_lookup phi) b1)
 run phi (Seq []) = phi
 run phi (Seq (s1:ss)) = run (run phi s1) (Seq ss)
 
+
 eval ::   Integral a => (Var -> AExpr a) -> AExpr a -> a
 eval _   (Const a)   = a
 eval sto (Ident i)   = eval sto (sto i)
@@ -49,6 +51,7 @@ eval sto (Add e1 e2) = (eval sto e1) + (eval sto e2)
 eval sto (Sub e1 e2) = (eval sto e1) - (eval sto e2)
 eval sto (Mul e1 e2) = (eval sto e1) * (eval sto e2)
 eval sto (Div e1 e2) = (eval sto e1) `div` (eval sto e2) 
+
 
 evalb :: Integral a => (Var -> AExpr a) -> BExpr a -> Bool
 evalb sto (LT e1 e2)  =  (eval sto e1) < (eval sto e2)
