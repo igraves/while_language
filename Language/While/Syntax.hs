@@ -1,4 +1,5 @@
 module Language.While.Syntax where
+import Prelude hiding (GT,LT,EQ)
 
 
 data Var = Var String deriving (Show, Eq, Ord)
@@ -24,6 +25,19 @@ data BExpr a =  T
                                 | NE  (AExpr a) (AExpr a)
                                 | NOT (BExpr a) deriving (Show, Eq)
                                 -- Missing is a parens case
+
+reduceBexpr :: BExpr a -> BExpr a
+reduceBexpr (NOT x) = case x of
+                           F -> T
+                           T -> F
+                           (LT y z)  -> GTE y z
+                           (LTE y z) -> GT y z
+                           (GT y z)  -> LTE y z
+                           (GTE y z) -> LT y z
+                           (EQ y z)  -> NE y z
+                           (NE y z)  -> EQ y z
+                           (NOT y)   -> reduceBexpr y
+reduceBexpr x = x
 
 --The Syntax Tree for programs
 data Stmt a =  Skip

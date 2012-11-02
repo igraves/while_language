@@ -3,6 +3,7 @@ import Control.Monad.Trans.State
 import Control.Monad.Trans
 import Control.Monad
 import Language.While.Syntax
+import Prelude hiding (GT,LT,EQ)
 
 --Return address code
 
@@ -47,6 +48,8 @@ data Instruction =   MOV  Register Register           |
                      RETGT  |
                      RETLTE |
                      RETGTE |
+                     POPR Register |
+                     POP |
                      PUSH Argument deriving (Show, Eq)
 
 type Frame = [Instruction]
@@ -258,17 +261,38 @@ testMachine = initMachine test_program_frames "entry" test_initial_stack
 ----
 ----Compilation procedures for while language to RAC
 ----
-type Labeler = State Int 
+type Labeler = State (Int,[(String,Int)],[(Label,Frame)])
 
 getLabel :: Labeler String
 getLabel = do
-             x <- get
-             put (x+1)
+             (x,s,z) <- get
+             put ((x+1),s,z)
              return $ "x" ++ (show x)
+getVarLabelUpdate :: String -> Labeler String
+getVarLabelUpdate var = do
+                        (x,s,z) <- get
+                        let r = lookup var s
+                        case r of
+                            Just num -> do
+                                            put (x,replace var (num+1) s,z) 
+                                            return $ var ++ (show (num+1))
+                            Nothing  -> do 
+                                            put (x,(var,1):s,z)
+                                            return $ var ++ "1"
+              where
+                  replace x v [] = [(x,v)]
+                  replace x v ((i,j):xs) = if x == i then (x,v):xs else (i,j) : replace x v xs
+
+getVarLabel v = do
+                  (x,s,z) <- get
+                  let r = lookup v s
+                  case r of
+                      Just num -> return $ v ++ (show num)
+                      Nothing  -> return $ v ++ "0" 
 
 compileWA :: AExpr Int -> Labeler (String, [Instruction])
 compileWA (Const i) = getLabel >>= \l -> return (l, [LOAD (Reg l) (N i)])
-compileWA (Ident (Var i)) = return (i,[])
+compileWA (Ident (Var i)) = getVarLabel i >>= \v -> return (v,[])
 compileWA (Neg e1) = do
                         (res, ins) <- compileWA e1
                         x <- getLabel
@@ -295,7 +319,98 @@ compileWA (Div e1 e2) = do
                          return (x, ins1 ++ ins2 ++ [DIV (Reg x) (Reg res1) (Reg res2)])
                           
 testexpr = Add (Neg $ Const 1) (Const 2)
-testcomp = runState (compileWA testexpr) 0
+testcomp = runState (compileWA testexpr) (0,[],[])
 
---compileWB BExpr Int -> Labeler (String, [Instruction])
---compileWB 
+newFrame :: Stmt Int -> Labeler String 
+newFrame s = do
+               (x,y,frames) <- get
+               ins <- compileWS s
+               let ins' = ins ++ [RET]
+               lbl <- getLabel 
+               put (x,y,((lbl,ins):frames))
+               return lbl
+
+compileWS :: Stmt Int -> Labeler [Instruction]
+compileWS (Assign (Var v) e1) = do
+                                   (s1,ins1) <- compileWA e1 
+                                   lbl <- getVarLabelUpdate v 
+                                   return $ ins1 ++ [MOV (Reg lbl) (Reg s1)]
+
+compileWS (If b s1 s2) = do
+                            f1 <- newFrame s1 
+                            f2 <- newFrame s2 -- Saving code space, but this will result in unreachable frames
+                            return []
+                            case (reduceBexpr b) of
+                                 T -> do
+                                        let rlabel = PUSH $ S $ L f1
+                                        return $ rlabel:[RET]
+                                 F -> do
+                                        let rlabel = PUSH $ S $ L f2
+                                        return $ rlabel:[RET]
+                                 (LT y z)  -> do
+                                                 (r1,ins1) <- compileWA y
+                                                 (r2,ins2) <- compileWA z
+                                                 let ins3 = [
+                                                             PUSH $ S $ L f1,
+                                                             CMP (Reg r1) (Reg r2),
+                                                             RETLTE,
+                                                             POP, PUSH $ S $ L f2,
+                                                             RET
+                                                            ]
+                                                 return $ ins1 ++ ins2 ++ ins3
+                                 (LTE y z) -> do
+                                                 (r1,ins1) <- compileWA y
+                                                 (r2,ins2) <- compileWA z
+                                                 let ins3 = [
+                                                             PUSH $ S $ L f1,
+                                                             CMP (Reg r1) (Reg r2),
+                                                             RETLTE,
+                                                             POP, PUSH $ S $ L f2,
+                                                             RET
+                                                            ]
+                                                 return $ ins1 ++ ins2 ++ ins3
+                                 (GT y z)  -> do
+                                                 (r1,ins1) <- compileWA y
+                                                 (r2,ins2) <- compileWA z
+                                                 let ins3 = [
+                                                             PUSH $ S $ L f1,
+                                                             CMP (Reg r1) (Reg r2),
+                                                             RETGT,
+                                                             POP, PUSH $ S $ L f2,
+                                                             RET
+                                                            ]
+                                                 return $ ins1 ++ ins2 ++ ins3
+                                 (GTE y z) -> do
+                                                 (r1,ins1) <- compileWA y
+                                                 (r2,ins2) <- compileWA z
+                                                 let ins3 = [
+                                                             PUSH $ S $ L f1,
+                                                             CMP (Reg r1) (Reg r2),
+                                                             RETGTE,
+                                                             POP, PUSH $ S $ L f2,
+                                                             RET
+                                                            ]
+                                                 return $ ins1 ++ ins2 ++ ins3
+                                 (EQ y z)  -> do
+                                                 (r1,ins1) <- compileWA y
+                                                 (r2,ins2) <- compileWA z
+                                                 let ins3 = [
+                                                             PUSH $ S $ L f1,
+                                                             CMP (Reg r1) (Reg r2),
+                                                             RETEQ,
+                                                             POP, PUSH $ S $ L f2,
+                                                             RET
+                                                            ]
+                                                 return $ ins1 ++ ins2 ++ ins3
+                                 (NE y z)  -> do
+                                                 (r1,ins1) <- compileWA y
+                                                 (r2,ins2) <- compileWA z
+                                                 let ins3 = [
+                                                             PUSH $ S $ L f1,
+                                                             CMP (Reg r1) (Reg r2),
+                                                             RETNEQ,
+                                                             POP, PUSH $ S $ L f2,
+                                                             RET
+                                                            ]
+                                                 return $ ins1 ++ ins2 ++ ins3
+                                 

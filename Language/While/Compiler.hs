@@ -2,7 +2,7 @@ module Language.While.Compiler where
 
 import Data.Word
 import Data.Int
-import Data.Set
+import Data.Set hiding (foldr)
 import Language.While.Syntax
 import LLVM.Core
 import LLVM.ExecutionEngine
