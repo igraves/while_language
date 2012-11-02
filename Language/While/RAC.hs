@@ -4,6 +4,7 @@ import Control.Monad.Trans
 import Control.Monad
 import Language.While.Syntax
 import Prelude hiding (GT,LT,EQ)
+import Language.While.Parser
 
 --Return address code
 
@@ -322,14 +323,20 @@ testexpr = Add (Neg $ Const 1) (Const 2)
 testcomp = runState (compileWA testexpr) (0,[],[])
 
 newFrame :: Stmt Int -> Labeler String 
+newFrame s@(Seq _) = do
+                       (x,y,frames) <- get
+                       ins <- compileWS s
+                       let ins' = ins 
+                       lbl <- getLabel 
+                       put (x,y,((lbl,ins):frames))
+                       return lbl
 newFrame s = do
                (x,y,frames) <- get
                ins <- compileWS s
                let ins' = ins ++ [RET]
                lbl <- getLabel 
-               put (x,y,((lbl,ins):frames))
+               put (x,y,((lbl,ins'):frames))
                return lbl
-
 compileWS :: Stmt Int -> Labeler [Instruction]
 compileWS (Assign (Var v) e1) = do
                                    (s1,ins1) <- compileWA e1 
@@ -339,7 +346,6 @@ compileWS (Assign (Var v) e1) = do
 compileWS (If b s1 s2) = do
                             f1 <- newFrame s1 
                             f2 <- newFrame s2 -- Saving code space, but this will result in unreachable frames
-                            return []
                             case (reduceBexpr b) of
                                  T -> do
                                         let rlabel = PUSH $ S $ L f1
@@ -347,70 +353,82 @@ compileWS (If b s1 s2) = do
                                  F -> do
                                         let rlabel = PUSH $ S $ L f2
                                         return $ rlabel:[RET]
-                                 (LT y z)  -> do
-                                                 (r1,ins1) <- compileWA y
-                                                 (r2,ins2) <- compileWA z
-                                                 let ins3 = [
-                                                             PUSH $ S $ L f1,
-                                                             CMP (Reg r1) (Reg r2),
-                                                             RETLTE,
-                                                             POP, PUSH $ S $ L f2,
-                                                             RET
-                                                            ]
-                                                 return $ ins1 ++ ins2 ++ ins3
-                                 (LTE y z) -> do
-                                                 (r1,ins1) <- compileWA y
-                                                 (r2,ins2) <- compileWA z
-                                                 let ins3 = [
-                                                             PUSH $ S $ L f1,
-                                                             CMP (Reg r1) (Reg r2),
-                                                             RETLTE,
-                                                             POP, PUSH $ S $ L f2,
-                                                             RET
-                                                            ]
-                                                 return $ ins1 ++ ins2 ++ ins3
-                                 (GT y z)  -> do
-                                                 (r1,ins1) <- compileWA y
-                                                 (r2,ins2) <- compileWA z
-                                                 let ins3 = [
-                                                             PUSH $ S $ L f1,
-                                                             CMP (Reg r1) (Reg r2),
-                                                             RETGT,
-                                                             POP, PUSH $ S $ L f2,
-                                                             RET
-                                                            ]
-                                                 return $ ins1 ++ ins2 ++ ins3
-                                 (GTE y z) -> do
-                                                 (r1,ins1) <- compileWA y
-                                                 (r2,ins2) <- compileWA z
-                                                 let ins3 = [
-                                                             PUSH $ S $ L f1,
-                                                             CMP (Reg r1) (Reg r2),
-                                                             RETGTE,
-                                                             POP, PUSH $ S $ L f2,
-                                                             RET
-                                                            ]
-                                                 return $ ins1 ++ ins2 ++ ins3
-                                 (EQ y z)  -> do
-                                                 (r1,ins1) <- compileWA y
-                                                 (r2,ins2) <- compileWA z
-                                                 let ins3 = [
-                                                             PUSH $ S $ L f1,
-                                                             CMP (Reg r1) (Reg r2),
-                                                             RETEQ,
-                                                             POP, PUSH $ S $ L f2,
-                                                             RET
-                                                            ]
-                                                 return $ ins1 ++ ins2 ++ ins3
-                                 (NE y z)  -> do
-                                                 (r1,ins1) <- compileWA y
-                                                 (r2,ins2) <- compileWA z
-                                                 let ins3 = [
-                                                             PUSH $ S $ L f1,
-                                                             CMP (Reg r1) (Reg r2),
-                                                             RETNEQ,
-                                                             POP, PUSH $ S $ L f2,
-                                                             RET
-                                                            ]
-                                                 return $ ins1 ++ ins2 ++ ins3
-                                 
+                                 x -> do
+                                        let (y, z) = prjaexpr x
+                                        (r1,ins1) <- compileWA y
+                                        (r2,ins2) <- compileWA z
+                                        let ins3 = [
+                                                    PUSH $ S $ L f1,
+                                                    CMP (Reg r1) (Reg r2),
+                                                    wbtorb x,
+                                                    POP, PUSH $ S $ L f2,
+                                                    RET
+                                                   ]
+                                        return $ ins1 ++ ins2 ++ ins3
+
+compileWS (While b s) = do
+                          case (reduceBexpr b) of
+                               F -> do
+                                      return $ [] -- Just nothing.  Effectively a skip.
+                               T -> do
+                                      f <- newFrame s
+                                      self <- getVarLabelUpdate "while" --Frame label
+                                      (x,y,frames) <- get
+                                      let jumpback = PUSH $ S $ L self
+                                      let rlabel = PUSH $ S $ L f
+                                      put (x,y,(self,jumpback:rlabel:[RET]):frames) --Always return to the loop body
+                                      return $ jumpback:[RET] -- Jump to the while frame
+                               c -> do
+                                      f <- newFrame s
+                                      self <- getVarLabelUpdate "while" --Frame label
+                                      (x,y,frames) <- get
+                                      let (y', z') = prjaexpr c
+                                      (r1,ins1) <- compileWA y'
+                                      (r2,ins2) <- compileWA z'
+
+                                      let jumpback = PUSH $ S $ L self
+                                      let rlabel = PUSH $ S $ L f
+                                      let while_b = [
+                                                      jumpback, --Push label back to while check 
+                                                      rlabel, -- Push Label to the loop body
+                                                      CMP (Reg r1) (Reg r2), -- check cmp
+                                                      wbtorb c, -- Ret if true
+                                                      POP, --If we didn't ret, pop label
+                                                      RET -- Return to caller context
+                                                    ]
+                                      put (x,y,(self,while_b):frames)
+                                      return $ jumpback:[RET]
+
+compileWS (Seq (x:[])) = compileWS x
+compileWS (Seq (x:xs)) = do
+                          r <- compileWS x
+                          rest <- compileWS $ Seq xs
+                          return $ r ++ rest ++ [RET] --End sequences in a ret.
+compileWS (Skip) = return []
+
+
+wbtorb :: BExpr Int -> Instruction
+wbtorb (LT _ _ ) = RETLT
+wbtorb (LTE _ _) = RETLTE
+wbtorb (GT _ _ ) = RETGT
+wbtorb (GTE _ _) = RETGTE
+wbtorb (EQ _ _ ) = RETEQ
+wbtorb (NE _ _) = RETNEQ
+
+prjaexpr :: BExpr Int -> (AExpr Int, AExpr Int)
+prjaexpr (LT x y ) = (x,y) 
+prjaexpr (LTE x y) = (x,y) 
+prjaexpr (GT x y ) = (x,y) 
+prjaexpr (GTE x y) = (x,y) 
+prjaexpr (EQ x y ) = (x,y) 
+prjaexpr (NE x y ) = (x,y) 
+
+compileWhile :: String -> IO ()
+compileWhile fname = do
+                        r <- parseFromFile stmts fname
+                        case (r) of
+                            Right s  -> do
+                                          
+                            Left err -> do
+                                          putStrLn "Parse error in file."
+                                          putStrLn $ show err
