@@ -1,5 +1,6 @@
 module Language.While.RAC where
 import Control.Monad.Trans.State
+import qualified Text.Parsec.String as PS
 import Control.Monad.Trans
 import Control.Monad
 import Language.While.Syntax
@@ -42,10 +43,10 @@ data Instruction =   MOV  Register Register           |
                      CMP  Register Register           |
                      SUB  Register Register Register  |
                      LOAD Register StoreData          |
+                     PUTS Register                    |
                      RET    |
                      RETEQ  |
-                     RETNEQ |
-                     RETLT  |
+                     RETNEQ | RETLT  |
                      RETGT  |
                      RETLTE |
                      RETGTE |
@@ -212,6 +213,9 @@ exec (PUSH arg) = do
                     let stk = stack s
                     put s {stack=sto:stk}
                     advance
+exec (PUTS arg) = do
+                    lift (putStrLn $ show arg)
+                    advance
 
 run :: Machine ()
 run = do
@@ -268,7 +272,7 @@ getLabel :: Labeler String
 getLabel = do
              (x,s,z) <- get
              put ((x+1),s,z)
-             return $ "x" ++ (show x)
+             return $ "x_" ++ (show x)
 getVarLabelUpdate :: String -> Labeler String
 getVarLabelUpdate var = do
                         (x,s,z) <- get
@@ -276,10 +280,10 @@ getVarLabelUpdate var = do
                         case r of
                             Just num -> do
                                             put (x,replace var (num+1) s,z) 
-                                            return $ var ++ (show (num+1))
+                                            return $ var ++ "_" ++ (show (num+1))
                             Nothing  -> do 
                                             put (x,(var,1):s,z)
-                                            return $ var ++ "1"
+                                            return $ var ++ "_1"
               where
                   replace x v [] = [(x,v)]
                   replace x v ((i,j):xs) = if x == i then (x,v):xs else (i,j) : replace x v xs
@@ -288,8 +292,8 @@ getVarLabel v = do
                   (x,s,z) <- get
                   let r = lookup v s
                   case r of
-                      Just num -> return $ v ++ (show num)
-                      Nothing  -> return $ v ++ "0" 
+                      Just num -> return $ v ++ "_" ++ (show num)
+                      Nothing  -> return $ v ++ "_0" 
 
 compileWA :: AExpr Int -> Labeler (String, [Instruction])
 compileWA (Const i) = getLabel >>= \l -> return (l, [LOAD (Reg l) (N i)])
@@ -397,7 +401,7 @@ compileWS (While b s) = do
                                                       RET -- Return to caller context
                                                     ]
                                       put (x,y,(self,while_b):frames)
-                                      return $ jumpback:[RET]
+                                      return $ ins1 ++ ins2 ++ jumpback:[RET]
 
 compileWS (Seq (x:[])) = compileWS x
 compileWS (Seq (x:xs)) = do
@@ -405,6 +409,10 @@ compileWS (Seq (x:xs)) = do
                           rest <- compileWS $ Seq xs
                           return $ r ++ rest ++ [RET] --End sequences in a ret.
 compileWS (Skip) = return []
+compileWS (Puts e1) = do
+                        (r1,ins1) <- compileWA e1
+                        return $ ins1 ++ [PUTS (Reg r1)]
+compileWS fail = error $ show fail
 
 
 wbtorb :: BExpr Int -> Instruction
@@ -425,10 +433,14 @@ prjaexpr (NE x y ) = (x,y)
 
 compileWhile :: String -> IO ()
 compileWhile fname = do
-                        r <- parseFromFile stmts fname
+                        r <- PS.parseFromFile stmts fname
                         case (r) of
-                            Right s  -> do
-                                          
+                            Right s   -> do
+                                          (r,(_,_,s)) <- return $ runState (compileWS (fmap fromIntegral s)) (0,[],[]) 
+                                          putStrLn $ "Top Level:"
+                                          putStrLn $ show r
+                                          putStrLn $ "Frames:"
+                                          putStrLn $ show s
                             Left err -> do
                                           putStrLn "Parse error in file."
                                           putStrLn $ show err

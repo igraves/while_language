@@ -1,5 +1,5 @@
-x = 0;
-while (x<10):
-  x = x + 1;
-  puts x;
+z = 0;
+while (z<10):
+  z = z + 1;
+  puts z;
 end;
